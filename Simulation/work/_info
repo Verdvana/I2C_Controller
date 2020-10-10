@@ -1,0 +1,85 @@
+m255
+K4
+z2
+13
+!s112 1.1
+!i10d 8192
+!i10e 25
+!i10f 100
+cModel Technology
+dE:/FPGA/BASYS3/Battery_Management_System_for_Wearable_Devices/CODE_Project/Battery_Management_System_for_Wearable_Devices.sim
+vBattery_Management_System_for_Wearable_Devices_TB
+Z0 DXx6 sv_std 3 std 0 22 AD7iAPLo6nTIKk<N0eo=D3
+!s110 1601812277
+!i10b 1
+!s100 J1=fZTe2LWifWC`6O]f5A1
+IFBeg;QRiePRW`C;P0;83k0
+Z1 VDg1SIo80bB@j0V0VzS_@n1
+Z2 !s105 I2C_TB_sv_unit
+S1
+Z3 dE:/FPGA/DE4/I2C/Simulation
+w1601812263
+Z4 8E:/FPGA/DE4/I2C/Simulation/I2C_TB.sv
+Z5 FE:/FPGA/DE4/I2C/Simulation/I2C_TB.sv
+Z6 L0 21
+Z7 OV;L;10.5b;63
+r1
+!s85 0
+31
+!s108 1601812277.000000
+!s107 E:/FPGA/DE4/I2C/Simulation/I2C_TB.sv|
+Z8 !s90 -reportprogress|300|-work|work|-sv|-stats=none|E:/FPGA/DE4/I2C/Simulation/I2C_TB.sv|
+!i113 1
+Z9 o-work work -sv
+Z10 tCvgOpt 0
+n@battery_@management_@system_for_@wearable_@devices_@t@b
+vI2C_Control
+R0
+Z11 !s110 1602246876
+!i10b 1
+!s100 ^QJ;T>ke73f:KjQmP?fKO0
+IS8FZX]dZK3`8TR:KC0b>C2
+R1
+!s105 I2C_Control_sv_unit
+S1
+R3
+w1602246874
+8E:/FPGA/DE4/I2C/RTL/I2C_Control.sv
+FE:/FPGA/DE4/I2C/RTL/I2C_Control.sv
+L0 26
+R7
+r1
+!s85 0
+31
+Z12 !s108 1602246876.000000
+!s107 E:/FPGA/DE4/I2C/RTL/I2C_Control.sv|
+!s90 -reportprogress|300|-work|work|-sv|-stats=none|E:/FPGA/DE4/I2C/RTL/I2C_Control.sv|
+!i113 1
+R9
+R10
+n@i2@c_@control
+vI2C_TB
+R0
+R11
+!i10b 1
+!s100 RI_8^KVbD@jkUcYeYKolz2
+I6_K9FYHc3G:nJj7U7`U?23
+R1
+R2
+S1
+R3
+w1602058377
+R4
+R5
+R6
+R7
+r1
+!s85 0
+31
+R12
+!s107 E:/FPGA/DE4/I2C/Simulation/I2C_TB.sv|
+R8
+!i113 1
+R9
+R10
+n@i2@c_@t@b

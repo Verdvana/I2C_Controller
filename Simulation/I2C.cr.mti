@@ -1,0 +1,8 @@
+E:/FPGA/DE4/I2C/Simulation/I2C_TB.sv {1 {vlog -work work -sv -stats=none E:/FPGA/DE4/I2C/Simulation/I2C_TB.sv
+Model Technology ModelSim - Intel FPGA Edition vlog 10.5b Compiler 2016.10 Oct  5 2016
+-- Compiling module I2C_TB
+
+Top level modules:
+	I2C_TB
+
+} {} {}}

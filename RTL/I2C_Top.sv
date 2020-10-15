@@ -12,7 +12,8 @@
 //------------------------------------------------------------------------------
 //
 //Version	Modified History
-//V1.0			
+//V1.0      I2C_Controller的wrapper
+//          包含I2C中实际的双向sda PAD
 //
 //=============================================================================
 
@@ -41,6 +42,7 @@ module I2C_Top #(
     output logic [7:0]  rdata,          //读数据
     output logic        rvalid,         //读数据有效（读完一个8bit数据会保持一个周期上升沿）
 
+    output logic        ready,          //准备好传输
     output logic        done,           //传输完成
     output logic        error,          //传输有误
 
@@ -81,6 +83,7 @@ module I2C_Top #(
         .sda_o(sda_o),
         .sda_en(sda_en),
 
+        .ready(ready),
         .done(done),
         .error(error)
     );

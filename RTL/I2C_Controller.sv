@@ -18,6 +18,8 @@
 //          系统时钟和I2C时钟可定制	
 //V1.1      两字节地址单字节数据读写
 //V1.2      两字节地址多字节数据读写
+//V1.3      在每次数据传输之前加入两个SCL周期的延时
+//          保证上一次传输结束与本次传输开始之间不冲突
 //
 //=============================================================================
 
@@ -51,9 +53,18 @@ module I2C_Controller #(
     output logic        sda_o,          //i2c sda输出
     output logic        sda_en,         //i2c sda输出有效
 
+    output logic        ready,          //准备好传输
     output logic        done,           //i2c 传输完成
     output logic        error           //i2c 传输错误
 );
+
+    //位宽计算函数
+    function integer clogb2 (input integer depth);
+    begin
+        for (clogb2=0; depth>0; clogb2=clogb2+1) 
+            depth = depth >>1;                          
+    end
+    endfunction
 
     localparam  SCL_CLK_CNT = SYS_CLOCK/SCL_CLOCK,  //scl时钟计数值
                 TCO         = 1;                    //寄存器延迟
@@ -62,44 +73,20 @@ module I2C_Controller #(
     logic           wen_r;              //写使能寄存
     logic           ren_r;              //读使能寄存
 
+    logic [15:0]    delay_cnt;          //延时计数器
+
     logic [7:0]     rdata_r;            //读数据寄存
     logic           num_word_addr_r;    //字节地址数寄存
     logic [7:0]     num_data_w_r;       //写数据个数寄存
     logic [7:0]     num_data_r_r;       //读数据个数寄存
 
     logic           scl_valid;          //scl有效
-    logic [15:0]    scl_cnt;            //scl计数器
+    logic [clogb2(SCL_CLK_CNT)-1:0] scl_cnt;            //scl计数器
 
     logic           scl_high;           //scl为高标志位
     logic           scl_low;            //scl为低标志位
 
     logic [7:0]     data_cnt;           //字节传输计数器
-
-    //======================================================================
-    //读写使能寄存
-    always_ff@(posedge clk, negedge rst_n)begin
-        if(!rst_n)
-            wen_r   <= #TCO '0;
-        else if(wen)
-            wen_r   <= #TCO '1;
-        else if(done)
-            wen_r   <= #TCO '0;
-        else
-            wen_r   <= #TCO wen_r;
-    end
-
-    always_ff@(posedge clk, negedge rst_n)begin
-        if(!rst_n)
-            ren_r   <= #TCO '0;
-        else if(ren)
-            ren_r   <= #TCO '1;
-        else if(done)
-            ren_r   <= #TCO '0;
-        else
-            ren_r   <= #TCO ren_r;
-    end
-
-    assign  wr = wen_r ? 1 : 0;
 
 
     //======================================================================
@@ -109,10 +96,10 @@ module I2C_Controller #(
     always_ff@(posedge clk, negedge rst_n)begin
         if(!rst_n)
             scl_valid   <= #TCO '0;
-        else if(wen || ren)
-            scl_valid   <= #TCO '1;
         else if(done || error)
             scl_valid   <= #TCO '0;
+        else if(wen || ren)
+            scl_valid   <= #TCO '1;
         else
             scl_valid   <= #TCO scl_valid;
     end
@@ -166,6 +153,7 @@ module I2C_Controller #(
     //i2c状态机
     enum logic[3:0] {
         IDLE        ,   //空闲状态
+        READY       ,   //Ready状态
         W_START     ,   //写START
         R_START     ,   //读START
         D_ADDR_W    ,   //写操作Device Address
@@ -187,11 +175,17 @@ module I2C_Controller #(
     //状态解码
     always_comb begin
         case(state)
-            IDLE:       begin
+            IDLE:   begin
+                if(delay_cnt == SCL_CLK_CNT*2)
+                    next_state  = READY;
+                else
+                    next_state  = IDLE;
+            end
+            READY:  begin
                 if(wen || ren)
                     next_state  = W_START;
                 else
-                    next_state  = IDLE;
+                    next_state  = READY;
             end
             W_START:   begin
                 if(~scl)
@@ -285,8 +279,58 @@ module I2C_Controller #(
         endcase
     end
 
+
+    //======================================================================
+    //读写使能寄存
+    always_ff@(posedge clk, negedge rst_n)begin
+        if(!rst_n)
+            wen_r   <= #TCO '0;
+        else 
+            case(state)
+                IDLE:
+                    wen_r   <= #TCO '0;
+                READY:
+                    wen_r   <= #TCO wen;
+                default:
+                    wen_r   <= #TCO wen_r;
+            endcase                
+    end
+
+    always_ff@(posedge clk, negedge rst_n)begin
+        if(!rst_n)
+            ren_r   <= #TCO '0;
+        else 
+            case(state)
+                IDLE:
+                    ren_r   <= #TCO '0;
+                READY:
+                    ren_r   <= #TCO ren;
+                default:
+                    ren_r   <= #TCO ren_r;
+            endcase     
+    end
+
+    assign  wr = wen_r ? 1 : 0;
+
+
     //======================================================================
     //状态机控制信号
+
+    //延时计数
+    always_ff@(posedge clk, negedge rst_n)begin
+        if(!rst_n)
+            delay_cnt   <= #TCO '0;
+        else
+            case(state)
+                IDLE:
+                    if(delay_cnt == SCL_CLK_CNT*2)
+                        delay_cnt   <= #TCO delay_cnt;
+                    else
+                        delay_cnt   <= #TCO delay_cnt + 1;
+                default:
+                    delay_cnt   <= #TCO '0;
+            endcase
+    end
 
     //字节计数器
     always_ff@(posedge clk, negedge rst_n)begin
@@ -314,7 +358,7 @@ module I2C_Controller #(
             num_word_addr_r <= #TCO '0;
         else 
             case(state)
-                IDLE:
+                READY:
                     if(wen || ren)
                         num_word_addr_r <= #TCO num_word_addr;
                     else
@@ -335,7 +379,7 @@ module I2C_Controller #(
             num_data_w_r    <= #TCO '0;
         else 
             case(state)
-                IDLE:
+                READY:
                     if(wen)
                         num_data_w_r    <= #TCO num_data_w;
                     else
@@ -356,7 +400,7 @@ module I2C_Controller #(
             num_data_r_r    <= #TCO '0;
         else 
             case(state)
-                IDLE:
+                READY:
                     if(ren)
                         num_data_r_r    <= #TCO num_data_r;
                     else
@@ -386,7 +430,7 @@ module I2C_Controller #(
                         if((scl_high == '1)&&(sda_i == '0))
                             wvalid  <= '1;
                         else
-                            wvalid  <= wvalid;
+                            wvalid  <= '0;
                     else
                         wvalid  <= '0;
                 default:
@@ -401,7 +445,7 @@ module I2C_Controller #(
             sda_o       <= #TCO '1;
         else
             case(state)
-                IDLE:
+                IDLE,READY:
                     sda_o   <= #TCO '1;
                 W_START:
                     if(scl_high)
@@ -497,11 +541,11 @@ module I2C_Controller #(
         else
             case(state)
                 RD_DATA:
-                    if(data_cnt >= 8'd16)
+                    if(data_cnt == 8'd16)
                         if(scl_high || scl_low)
                             rvalid  <= '1;
                         else
-                            rvalid  <= rvalid;
+                            rvalid  <= '0;
                     else
                         rvalid  <= '0;
                 default:
@@ -563,7 +607,7 @@ module I2C_Controller #(
             sda_en  <= #TCO '0;
         else
             case(state)
-                IDLE:
+                IDLE,READY:
                     sda_en  <= #TCO '0;
                 W_START,R_START,STOP:
                     sda_en  <= #TCO '1;
@@ -582,6 +626,19 @@ module I2C_Controller #(
                         sda_en  <= #TCO sda_en;
                 default:
                     sda_en  <= #TCO '0;
+            endcase
+    end
+
+    //ready
+    always_ff@(posedge clk, negedge rst_n) begin
+        if(!rst_n)
+            ready   <= #TCO '0;
+        else
+            case(state)
+                READY:
+                    ready   <= #TCO '1;
+                default: 
+                    ready   <= #TCO '0;
             endcase
     end
 

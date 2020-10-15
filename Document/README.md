@@ -7,6 +7,35 @@
     * 单次读写或循环读写可配置。
 
 
+### 接口说明
+
+* clk：系统时钟       
+* rst_n：异步复位        
+
+* device_addr：设备地址（8bit格式）；
+* word_addr_h：双字节word地址高8bit；
+* word_addr_l：双字节word地址低8bit或单字节word地址；
+
+* num_word_addr：word地址宽度，0为八位，1为十六位；
+* num_data_w：写数据(8bit)的个数（num_data_w+1）；  
+* num_data_r：读数据(8bit)的个数（num_data_r+1）；  
+
+* wen：写使能；      
+* wdata：写数据；      
+* wvalid：写数据有效（写完一个8bit数据会保持一个周期上升沿）；
+
+* ren：读使能；
+* rdata：读数据；
+* rvalid：读数据有效（读完一个8bit数据会保持一个周期上升沿）；
+
+* ready：准备好传输；
+* done：传输完成；
+* error：传输有误；
+
+* scl：scl；
+* sda：sda。         
+
+
 ### 时序
 
 #### 综述

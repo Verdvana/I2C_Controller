@@ -75,10 +75,15 @@ module I2C_Controller #(
 
     logic [15:0]    delay_cnt;          //延时计数器
 
+    logic [7:0]     device_addr_r;      //器件地址寄存
+    logic [7:0]     word_addr_h_r;      //字节地址高八位寄存
+    logic [7:0]     word_addr_l_r;      //字节地址低八位寄存
     logic [7:0]     rdata_r;            //读数据寄存
+
     logic           num_word_addr_r;    //字节地址数寄存
     logic [7:0]     num_data_w_r;       //写数据个数寄存
     logic [7:0]     num_data_r_r;       //读数据个数寄存
+
 
     logic           scl_valid;          //scl有效
     logic [clogb2(SCL_CLK_CNT)-1:0] scl_cnt;            //scl计数器
@@ -281,33 +286,40 @@ module I2C_Controller #(
 
 
     //======================================================================
-    //读写使能寄存
+    //控制信号和数据寄存
     always_ff@(posedge clk, negedge rst_n)begin
-        if(!rst_n)
-            wen_r   <= #TCO '0;
-        else 
+        if(!rst_n)begin
+            wen_r           <= #TCO '0;
+            ren_r           <= #TCO '0;
+            device_addr_r   <= #TCO '0;
+            word_addr_h_r   <= #TCO '0;
+            word_addr_l_r   <= #TCO '0;
+        end
+        else begin
             case(state)
-                IDLE:
-                    wen_r   <= #TCO '0;
-                READY:
-                    wen_r   <= #TCO wen;
-                default:
-                    wen_r   <= #TCO wen_r;
-            endcase                
-    end
-
-    always_ff@(posedge clk, negedge rst_n)begin
-        if(!rst_n)
-            ren_r   <= #TCO '0;
-        else 
-            case(state)
-                IDLE:
-                    ren_r   <= #TCO '0;
-                READY:
-                    ren_r   <= #TCO ren;
-                default:
-                    ren_r   <= #TCO ren_r;
-            endcase     
+                IDLE:begin
+                    wen_r           <= #TCO '0;
+                    ren_r           <= #TCO '0;
+                    device_addr_r   <= #TCO '0;
+                    word_addr_h_r   <= #TCO '0;
+                    word_addr_l_r   <= #TCO '0;
+                end 
+                READY:begin 
+                    wen_r           <= #TCO wen;
+                    ren_r           <= #TCO ren;
+                    device_addr_r   <= #TCO device_addr;
+                    word_addr_h_r   <= #TCO word_addr_h;
+                    word_addr_l_r   <= #TCO word_addr_l;
+                end
+                default:begin
+                    wen_r           <= #TCO wen_r;
+                    ren_r           <= #TCO ren_r;
+                    device_addr_r   <= #TCO device_addr_r;
+                    word_addr_h_r   <= #TCO word_addr_h_r;
+                    word_addr_l_r   <= #TCO word_addr_l_r;
+                end
+            endcase    
+        end            
     end
 
     assign  wr = wen_r ? 1 : 0;
@@ -462,13 +474,13 @@ module I2C_Controller #(
                 D_ADDR_W:
                     if(scl_low)
                         case(data_cnt)
-                            0:sda_o   <= #TCO device_addr[7];
-                            2:sda_o   <= #TCO device_addr[6];
-                            4:sda_o   <= #TCO device_addr[5];
-                            6:sda_o   <= #TCO device_addr[4];
-                            8:sda_o   <= #TCO device_addr[3];
-                            10:sda_o  <= #TCO device_addr[2];
-                            12:sda_o  <= #TCO device_addr[1];
+                            0:sda_o   <= #TCO device_addr_r[7];
+                            2:sda_o   <= #TCO device_addr_r[6];
+                            4:sda_o   <= #TCO device_addr_r[5];
+                            6:sda_o   <= #TCO device_addr_r[4];
+                            8:sda_o   <= #TCO device_addr_r[3];
+                            10:sda_o  <= #TCO device_addr_r[2];
+                            12:sda_o  <= #TCO device_addr_r[1];
                             14:sda_o  <= #TCO 1'b0;
                             default:sda_o   <= #TCO '0;
                         endcase
@@ -477,13 +489,13 @@ module I2C_Controller #(
                 D_ADDR_R:
                     if(scl_low)
                         case(data_cnt)
-                            0:sda_o   <= #TCO device_addr[7];
-                            2:sda_o   <= #TCO device_addr[6];
-                            4:sda_o   <= #TCO device_addr[5];
-                            6:sda_o   <= #TCO device_addr[4];
-                            8:sda_o   <= #TCO device_addr[3];
-                            10:sda_o  <= #TCO device_addr[2];
-                            12:sda_o  <= #TCO device_addr[1];
+                            0:sda_o   <= #TCO device_addr_r[7];
+                            2:sda_o   <= #TCO device_addr_r[6];
+                            4:sda_o   <= #TCO device_addr_r[5];
+                            6:sda_o   <= #TCO device_addr_r[4];
+                            8:sda_o   <= #TCO device_addr_r[3];
+                            10:sda_o  <= #TCO device_addr_r[2];
+                            12:sda_o  <= #TCO device_addr_r[1];
                             14:sda_o  <= #TCO 1'b1;
                             default:sda_o   <= #TCO '0;
                         endcase
@@ -492,14 +504,14 @@ module I2C_Controller #(
                 W_ADDR:
                     if(scl_low)
                         case(data_cnt)
-                            0:sda_o   <= #TCO num_word_addr_r ? word_addr_h[7] : word_addr_l[7];
-                            2:sda_o   <= #TCO num_word_addr_r ? word_addr_h[6] : word_addr_l[6];
-                            4:sda_o   <= #TCO num_word_addr_r ? word_addr_h[5] : word_addr_l[5];
-                            6:sda_o   <= #TCO num_word_addr_r ? word_addr_h[4] : word_addr_l[4];
-                            8:sda_o   <= #TCO num_word_addr_r ? word_addr_h[3] : word_addr_l[3];
-                            10:sda_o  <= #TCO num_word_addr_r ? word_addr_h[2] : word_addr_l[2];
-                            12:sda_o  <= #TCO num_word_addr_r ? word_addr_h[1] : word_addr_l[1];
-                            14:sda_o  <= #TCO num_word_addr_r ? word_addr_h[0] : word_addr_l[0];
+                            0:sda_o   <= #TCO num_word_addr_r ? word_addr_h_r[7] : word_addr_l_r[7];
+                            2:sda_o   <= #TCO num_word_addr_r ? word_addr_h_r[6] : word_addr_l_r[6];
+                            4:sda_o   <= #TCO num_word_addr_r ? word_addr_h_r[5] : word_addr_l_r[5];
+                            6:sda_o   <= #TCO num_word_addr_r ? word_addr_h_r[4] : word_addr_l_r[4];
+                            8:sda_o   <= #TCO num_word_addr_r ? word_addr_h_r[3] : word_addr_l_r[3];
+                            10:sda_o  <= #TCO num_word_addr_r ? word_addr_h_r[2] : word_addr_l_r[2];
+                            12:sda_o  <= #TCO num_word_addr_r ? word_addr_h_r[1] : word_addr_l_r[1];
+                            14:sda_o  <= #TCO num_word_addr_r ? word_addr_h_r[0] : word_addr_l_r[0];
                             default:sda_o   <= #TCO '0;
                         endcase
                     else

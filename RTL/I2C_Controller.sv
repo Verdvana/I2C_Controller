@@ -26,36 +26,22 @@
 `timescale 1ns/1ps
 
 module I2C_Controller #(
-    parameter   SYS_CLOCK = 50_000_000, //系统时钟频率
-                SCL_CLOCK = 400_000     //I2C时钟频率
+    parameter   SYS_CLOCK = 50_000_000,     //系统时钟频率
+                SCL_CLOCK = 400_000         //I2C时钟频率
 )(
-    input  logic        clk,            //系统时钟
-    input  logic        rst_n,          //异步复位
+    input  logic            clk,            //系统时钟
+    input  logic            rst_n,          //异步复位
 
-    input  logic [7:0]  device_addr,    //器件地址（8bit格式，最后1bit会被截掉）
-    input  logic [7:0]  word_addr_h,    //字节地址高八位
-    input  logic [7:0]  word_addr_l,    //字节地址低八位
+    I2C_Ctrl_Intf.Device    i2c_ctrl_intf_d,//i2c 控制接口（设备侧）
 
-    input  logic        num_word_addr,  //字节地址宽度，0为八位，1为十六位
-    input  logic [7:0]  num_data_w,     //写数据(8bit)的个数（num_data_w+1）
-    input  logic [7:0]  num_data_r,     //读数据(8bit)的个数（num_data_r+1）
+    output logic            scl,            //i2c scl输出
+    input  logic            sda_i,          //i2c sda输入
+    output logic            sda_o,          //i2c sda输出
+    output logic            sda_en,         //i2c sda输出有效
 
-    input  logic        wen,            //写使能
-    input  logic [7:0]  wdata,          //写数据
-    output logic        wvalid,         //写数据有效（写完一个8bit数据会保持一个周期上升沿）
-
-    input  logic        ren,            //读使能
-    output logic [7:0]  rdata,          //读数据
-    output logic        rvalid,         //读数据有效（读完一个8bit数据会保持一个周期上升沿）
-
-    output logic        scl,            //i2c scl输出
-    input  logic        sda_i,          //i2c sda输入
-    output logic        sda_o,          //i2c sda输出
-    output logic        sda_en,         //i2c sda输出有效
-
-    output logic        ready,          //准备好传输
-    output logic        done,           //i2c 传输完成
-    output logic        error           //i2c 传输错误
+    output logic            ready,          //准备好传输
+    output logic            done,           //i2c 传输完成
+    output logic            error           //i2c 传输错误
 );
 
     //位宽计算函数
@@ -103,7 +89,7 @@ module I2C_Controller #(
             scl_valid   <= #TCO '0;
         else if(done || error)
             scl_valid   <= #TCO '0;
-        else if(wen || ren)
+        else if(i2c_ctrl_intf_d.wen || i2c_ctrl_intf_d.ren)
             scl_valid   <= #TCO '1;
         else
             scl_valid   <= #TCO scl_valid;
@@ -125,13 +111,13 @@ module I2C_Controller #(
     //scl
     always_ff@(posedge clk, negedge rst_n)begin
         if(!rst_n)
-            scl         <= #TCO '1;
+            scl <= #TCO '1;
         else if(scl_cnt == (SCL_CLK_CNT>>1))
-            scl         <= #TCO '0;
+            scl  <= #TCO '0;
         else if(scl_cnt == '0)
-            scl         <= #TCO '1;
+            scl  <= #TCO '1;
         else
-            scl         <= #TCO scl;
+            scl  <= #TCO scl;
     end
 
     //scl为高
@@ -187,7 +173,7 @@ module I2C_Controller #(
                     next_state  = IDLE;
             end
             READY:  begin
-                if(wen || ren)
+                if(i2c_ctrl_intf_d.wen || i2c_ctrl_intf_d.ren)
                     next_state  = W_START;
                 else
                     next_state  = READY;
@@ -305,11 +291,11 @@ module I2C_Controller #(
                     word_addr_l_r   <= #TCO '0;
                 end 
                 READY:begin 
-                    wen_r           <= #TCO wen;
-                    ren_r           <= #TCO ren;
-                    device_addr_r   <= #TCO device_addr;
-                    word_addr_h_r   <= #TCO word_addr_h;
-                    word_addr_l_r   <= #TCO word_addr_l;
+                    wen_r           <= #TCO i2c_ctrl_intf_d.wen;
+                    ren_r           <= #TCO i2c_ctrl_intf_d.ren;
+                    device_addr_r   <= #TCO i2c_ctrl_intf_d.device_addr;
+                    word_addr_h_r   <= #TCO i2c_ctrl_intf_d.word_addr_h;
+                    word_addr_l_r   <= #TCO i2c_ctrl_intf_d.word_addr_l;
                 end
                 default:begin
                     wen_r           <= #TCO wen_r;
@@ -371,8 +357,8 @@ module I2C_Controller #(
         else 
             case(state)
                 READY:
-                    if(wen || ren)
-                        num_word_addr_r <= #TCO num_word_addr;
+                    if(i2c_ctrl_intf_d.wen || i2c_ctrl_intf_d.ren)
+                        num_word_addr_r <= #TCO i2c_ctrl_intf_d.num_word_addr;
                     else
                         num_word_addr_r <= #TCO num_word_addr_r;
                 W_ADDR:
@@ -381,7 +367,7 @@ module I2C_Controller #(
                     else
                         num_word_addr_r <= #TCO num_word_addr_r;
             default:
-                num_word_addr_r <= #TCO num_word_addr;
+                num_word_addr_r <= #TCO i2c_ctrl_intf_d.num_word_addr;
             endcase
     end
 
@@ -392,8 +378,8 @@ module I2C_Controller #(
         else 
             case(state)
                 READY:
-                    if(wen)
-                        num_data_w_r    <= #TCO num_data_w;
+                    if(i2c_ctrl_intf_d.wen)
+                        num_data_w_r    <= #TCO i2c_ctrl_intf_d.num_data_w;
                     else
                         num_data_w_r    <= #TCO num_data_w_r;
                 WR_DATA:
@@ -413,8 +399,8 @@ module I2C_Controller #(
         else 
             case(state)
                 READY:
-                    if(ren)
-                        num_data_r_r    <= #TCO num_data_r;
+                    if(i2c_ctrl_intf_d.ren)
+                        num_data_r_r    <= #TCO i2c_ctrl_intf_d.num_data_r;
                     else
                         num_data_r_r    <= #TCO num_data_r_r;
                 RD_DATA:
@@ -434,19 +420,19 @@ module I2C_Controller #(
     //写有效
     always_ff@(posedge clk, negedge rst_n)begin
         if(!rst_n)
-            wvalid  <= '0;
+            i2c_ctrl_intf_d.wvalid  <= '0;
         else
             case(state)
                 WR_DATA:
                     if(data_cnt == 8'd17)
                         if((scl_high == '1)&&(sda_i == '0))
-                            wvalid  <= '1;
+                            i2c_ctrl_intf_d.wvalid  <= '1;
                         else
-                            wvalid  <= '0;
+                            i2c_ctrl_intf_d.wvalid  <= '0;
                     else
-                        wvalid  <= '0;
+                        i2c_ctrl_intf_d.wvalid  <= '0;
                 default:
-                    wvalid  <= '0;
+                    i2c_ctrl_intf_d.wvalid  <= '0;
             endcase
     end
 
@@ -454,7 +440,7 @@ module I2C_Controller #(
     //sda输出
     always_ff@(posedge clk, negedge rst_n)begin
         if(!rst_n)
-            sda_o       <= #TCO '1;
+            sda_o    <= #TCO '1;
         else
             case(state)
                 IDLE,READY:
@@ -519,14 +505,14 @@ module I2C_Controller #(
                 WR_DATA:
                     if(scl_low)
                         case(data_cnt)
-                            0:sda_o   <= #TCO wdata[7];
-                            2:sda_o   <= #TCO wdata[6];
-                            4:sda_o   <= #TCO wdata[5];
-                            6:sda_o   <= #TCO wdata[4];
-                            8:sda_o   <= #TCO wdata[3];
-                            10:sda_o  <= #TCO wdata[2];
-                            12:sda_o  <= #TCO wdata[1];
-                            14:sda_o  <= #TCO wdata[0];
+                            0:sda_o   <= #TCO i2c_ctrl_intf_d.wdata[7];
+                            2:sda_o   <= #TCO i2c_ctrl_intf_d.wdata[6];
+                            4:sda_o   <= #TCO i2c_ctrl_intf_d.wdata[5];
+                            6:sda_o   <= #TCO i2c_ctrl_intf_d.wdata[4];
+                            8:sda_o   <= #TCO i2c_ctrl_intf_d.wdata[3];
+                            10:sda_o  <= #TCO i2c_ctrl_intf_d.wdata[2];
+                            12:sda_o  <= #TCO i2c_ctrl_intf_d.wdata[1];
+                            14:sda_o  <= #TCO i2c_ctrl_intf_d.wdata[0];
                             default:sda_o   <= #TCO '0;
                         endcase
                     else
@@ -549,19 +535,19 @@ module I2C_Controller #(
     //读有效
     always_ff@(posedge clk, negedge rst_n)begin
         if(!rst_n)
-            rvalid  <= '0;
+            i2c_ctrl_intf_d.rvalid  <= '0;
         else
             case(state)
                 RD_DATA:
                     if(data_cnt == 8'd16)
                         if(scl_high || scl_low)
-                            rvalid  <= '1;
+                            i2c_ctrl_intf_d.rvalid  <= '1;
                         else
-                            rvalid  <= '0;
+                            i2c_ctrl_intf_d.rvalid  <= '0;
                     else
-                        rvalid  <= '0;
+                        i2c_ctrl_intf_d.rvalid  <= '0;
                 default:
-                    rvalid  <= '0;
+                    i2c_ctrl_intf_d.rvalid  <= '0;
             endcase
     end
 
@@ -594,19 +580,19 @@ module I2C_Controller #(
     //读输出
     always_ff@(posedge clk, negedge rst_n)begin
         if(!rst_n)
-            rdata   <= '0;
+            i2c_ctrl_intf_d.rdata   <= '0;
         else
             case(state)
                 RD_DATA:
                     if(data_cnt >= 8'd16)
                         if(scl_high || scl_low)
-                            rdata   <= rdata_r;
+                            i2c_ctrl_intf_d.rdata   <= rdata_r;
                         else
-                            rdata   <= rdata;
+                            i2c_ctrl_intf_d.rdata   <= i2c_ctrl_intf_d.rdata;
                     else
-                        rdata   <= rdata;
+                        i2c_ctrl_intf_d.rdata   <= i2c_ctrl_intf_d.rdata;
                 default:
-                    rdata   <= rdata;
+                    i2c_ctrl_intf_d.rdata   <= i2c_ctrl_intf_d.rdata;
             endcase
     end
 
